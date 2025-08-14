@@ -1,0 +1,28 @@
+# macOS
+.DS_Store
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Virtual environments (never commit)
+.venv/
+venv/
+ENV/
+**/.venv/
+**/venv/
+
+# Environment files (never commit)
+.env
+.env.*
+*.env
+**/.env
+
+# Streamlit
+.streamlit/
+
+# Editor/IDE configs
+.vscode/
+.idea/

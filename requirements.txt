@@ -9,3 +9,9 @@ tenacity==8.5.0
 tavily-python==0.4.0
 rapidfuzz==3.9.6
 pdfminer.six==20240706
+langchain==0.3.0
+langchain-community==0.3.0
+langchain-openai==0.2.0
+selenium==4.15.2
+webdriver-manager==4.0.1
+PyPDF2==3.0.1

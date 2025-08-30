@@ -286,9 +286,9 @@ def run_query_fallback(
 	if not zoning_district_info:
 		with span(logger, "discover_zoning_legacy"):
 			progress("🔄 Using fallback: Discovering zoning districts")
-			zoning_districts = zoning_service.discover_zoning_districts(
-				latitude=geo["lat"], longitude=geo["lon"], jurisdiction=geo["jurisdiction"]
-			)
+		zoning_districts = zoning_service.discover_zoning_districts(
+			latitude=geo["lat"], longitude=geo["lon"], jurisdiction=geo["jurisdiction"]
+		)
 
 	allowlist = [".gov", ".us", "municode.com", "ecode360.com", "arcgis.com", "mapgeo.io"]
 
@@ -767,7 +767,7 @@ def run_query(
 	
 	transformed_zoning_analysis = _transform_to_metric_values(verified.get("zoningAnalysis", {}), source_title, allowed_zoning)
 	transformed_parking_summary = _transform_to_metric_values(verified.get("parkingSummary", {}), source_title, allowed_parking)
-	
+
 	output = OutputResult(
 		address=address,
 		jurisdiction=geo["jurisdiction"],

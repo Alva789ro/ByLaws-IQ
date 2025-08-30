@@ -1,6 +1,6 @@
-# Bylaws-IQ: AI-Powered Zoning Bylaws Analysis
+# Bylaws-IQ: Advanced Zoning Bylaws Analysis System
 
-Bylaws-IQ is an advanced AI-powered system that automatically discovers, analyzes, and extracts specific zoning metrics for any address in Massachusetts. The system uses sophisticated web scraping, official document discovery, and LLM analysis to provide accurate zoning information with live citations.
+Bylaws-IQ is a sophisticated automated system that discovers, analyzes, and extracts specific zoning metrics for any address in Massachusetts. The system combines advanced web automation, official document discovery, and large language model analysis to provide accurate zoning information with verifiable citations.
 
 ## Overview
 
@@ -11,8 +11,8 @@ Bylaws-IQ combines multiple advanced technologies in a sophisticated modular arc
 - **Official Website Discovery**: Uses Massachusetts Municipal Association (MMA) database for authoritative municipal websites
 - **Dynamic Content Navigation**: Selenium-powered web automation for complex municipal website interactions  
 - **Multi-Method Document Discovery**: Battle-tested bylaws PDF discovery using multiple search strategies with early termination
-- **Enhanced Ecode360 Integration**: Advanced anti-bot bypass strategies and Chrome DevTools Protocol PDF generation
-- **AI-Powered Analysis**: Uses Google Gemini models via OpenRouter for document analysis and intelligent selection
+- **Enhanced Ecode360 Integration**: Advanced anti-bot bypass strategies and Chrome DevTools Protocol PDF generation  
+- **Large Language Model Analysis**: Google Gemini 2.5 Pro and Gemini Flash 1.5 via OpenRouter for document analysis and intelligent selection
 - **Comprehensive Error Handling**: Robust fallback mechanisms with user consent controls and resource optimization
 
 ### Technical Highlights
@@ -43,8 +43,8 @@ The system employs a sophisticated modular architecture with specialized agents 
 #### **ZoningMapAgent** - Map Discovery & District Analysis
 - **Official Website Discovery**: MMA database integration with caching for efficiency
 - **Dynamic Map Search**: Municipal website search tool utilization
-- **LLM-Powered Map Selection**: AI-driven selection of most recent and relevant zoning maps
-- **Direct PDF Analysis**: Vision-capable model analysis of zoning maps from URLs
+- **LLM-Powered Map Selection**: Model-driven selection of most recent and relevant zoning maps using Gemini Flash 1.5
+- **Direct PDF Analysis**: Document analysis of zoning maps from URLs using Gemini 2.5 Pro
 - **District Identification**: Extraction of specific zoning district codes and overlay information
 - **Website Caching**: Efficient reuse of discovered official websites
 
@@ -71,8 +71,8 @@ The system employs a sophisticated modular architecture with specialized agents 
 
 #### 2. Zoning Map Discovery & Analysis (ZoningMapAgent)
 - **Dynamic Search**: Uses municipal website search tools to find "Zoning Map" documents
-- **LLM-Powered Selection**: AI selects most recent and relevant zoning maps from search results
-- **Direct PDF Analysis**: Analyzes zoning maps directly from URLs using vision-capable models
+- **Model-Based Selection**: Gemini Flash 1.5 selects most recent and relevant zoning maps from search results
+- **Direct PDF Analysis**: Analyzes zoning maps directly from URLs using Gemini 2.5 Pro
 - **District Identification**: Extracts specific zoning district codes and overlay information
 - **Website Caching**: Efficient storage and reuse of discovered official websites
 
@@ -163,24 +163,24 @@ Advanced integration for ecode360.com hosted municipal bylaws with comprehensive
 - **Source Tracking**: Records all discovery paths while avoiding duplicate processing
 - **Memory Optimization**: Efficient tracking using dictionary-based deduplication
 
-#### 6. AI-Powered Analysis System (`bylaws_iq/services/llm.py`)
+#### 6. Large Language Model Analysis System (`bylaws_iq/services/llm.py`)
 
-##### **Multi-Model LLM Integration**
-- **Primary Analysis**: Google Gemini-2.5-Pro via OpenRouter for complex document analysis and metric extraction
-- **Document Selection**: Google Gemini-Flash-1.5 for PDF selection and classification tasks
+##### **Multi-Model Architecture**
+- **Primary Analysis**: Google Gemini 2.5 Pro via OpenRouter for complex document analysis and metric extraction
+- **Document Selection**: Google Gemini Flash 1.5 for PDF selection and classification tasks
 - **Structured Output**: JSON schema enforcement using OpenRouter's `response_format` feature with strict validation
 - **Token Management**: Intelligent content truncation and context allocation based on task complexity
 
 ##### **Advanced Document Selection System**
-- **Multi-PDF Analysis**: Intelligent selection of most recent versions when multiple documents found
-- **Date Pattern Recognition**: AI-powered analysis of version dates and document currency
+- **Multi-PDF Analysis**: Automated selection of most recent versions when multiple documents found
+- **Date Pattern Recognition**: Language model analysis of version dates and document currency using Gemini Flash 1.5
 - **Structured Selection Response**: JSON-formatted selection with reasoning and confidence scoring
 - **Fallback Processing**: Non-structured JSON prompting when schema enforcement unavailable
 
 ##### **Comprehensive Metric Synthesis Process**
 - **Context-Aware Analysis**: Incorporates discovered zoning district codes and overlay information
 - **District-Specific Extraction**: Targets metrics specifically for the determined zoning district
-- **Multi-Category Coverage**: Extracts building height, setbacks, lot coverage, parking, FAR, density, permitted uses
+- **Multi-Category Coverage**: Extracts building height, setbacks, lot coverage, parking, FAR, density, permitted uses using Gemini 2.5 Pro
 - **Citation Generation**: Creates traceable citations back to source documents with page references
 - **Quality Validation**: Multiple validation layers for JSON output, content completeness, and accuracy
 
@@ -205,20 +205,32 @@ Advanced integration for ecode360.com hosted municipal bylaws with comprehensive
 ## Technical Specifications
 
 ### Dependencies
-- **Web Automation**: Selenium WebDriver with Chrome
-- **HTTP Requests**: httpx, requests with advanced retry logic
-- **PDF Processing**: PyPDF2 for text extraction
-- **HTML Processing**: BeautifulSoup4 for DOM manipulation
-- **AI Integration**: OpenRouter API for Google Gemini models
-- **Search Integration**: Tavily API for fallback searches
-- **UI Framework**: Streamlit for web interface
+- **Web Automation**: Selenium WebDriver with Chrome WebDriver management
+- **HTTP Requests**: httpx, requests with advanced retry logic and anti-bot strategies
+- **PDF Processing**: PyPDF2 for text extraction, Chrome DevTools Protocol for PDF generation
+- **HTML Processing**: BeautifulSoup4 for DOM manipulation and content extraction
+- **Language Model Integration**: OpenRouter API for Google Gemini 2.5 Pro and Gemini Flash 1.5
+- **Search Integration**: Tavily API for fallback document searches  
+- **UI Framework**: Streamlit for web interface and session management
+
+### Model Specifications
+- **Primary Analysis Model**: Google Gemini 2.5 Pro
+  - **Use Cases**: Complex document analysis, zoning metric extraction, district identification
+  - **Context Window**: 32,768 tokens
+  - **Structured Output**: JSON schema enforcement via OpenRouter
+  - **Temperature**: 0.1 for consistent, factual responses
+- **Classification Model**: Google Gemini Flash 1.5  
+  - **Use Cases**: Document selection, website classification, PDF ranking
+  - **Context Window**: 32,768 tokens
+  - **Response Format**: Structured JSON with reasoning
+  - **Temperature**: 0.0 for deterministic classification
 
 ### Environment Variables Required
 ```bash
-OPENROUTER_API_KEY=your_openrouter_api_key      # AI model access
-TAVILY_API_KEY=your_tavily_api_key              # Search fallback  
-MAPBOX_TOKEN=your_mapbox_token                  # Primary geocoding
-# OR GEOAPIFY_KEY=your_geoapify_key             # Alternative geocoding
+OPENROUTER_API_KEY=your_openrouter_api_key      # Google Gemini model access via OpenRouter
+TAVILY_API_KEY=your_tavily_api_key              # Search fallback integration
+MAPBOX_TOKEN=your_mapbox_token                  # Primary geocoding service
+# OR GEOAPIFY_KEY=your_geoapify_key             # Alternative geocoding service
 ```
 
 ### Data Storage
@@ -259,29 +271,40 @@ streamlit run app/main.py
 ```
 bylaws_iq/
 ├── app/
-│   └── main.py              # Streamlit web interface
+│   └── main.py                      # Streamlit web interface
 ├── bylaws_iq/
 │   ├── __init__.py
-│   ├── models.py            # Pydantic data models and schemas  
-│   ├── pipeline.py          # Main orchestration and workflow logic
-│   ├── logging_config.py    # Structured logging configuration
+│   ├── models.py                    # Pydantic data models and schemas  
+│   ├── pipeline.py                  # Main orchestration and workflow logic
+│   ├── logging_config.py            # Structured logging configuration
 │   └── services/
-│       ├── geocode.py       # Multi-provider geocoding services
-│       ├── zoning_agent.py  # Modular zoning agent architecture:
-│       │                    #   - BaseZoningAgent (shared infrastructure)
-│       │                    #   - ZoningMapAgent (map discovery & analysis)  
-│       │                    #   - ZoningBylawsAgent (comprehensive bylaws discovery)
-│       │                    #   - CombinedZoningAgent (orchestration layer)
-│       ├── search.py        # Tavily search integration (fallback)
-│       ├── scrape.py        # Web scraping and PDF utilities
-│       ├── llm.py           # OpenRouter/Gemini LLM integration
-│       ├── zoning.py        # Legacy GIS-based zoning (fallback)
-│       ├── gis.py           # GIS service integration (fallback)
-│       ├── authority.py     # Authority verification (fallback)
-│       └── confidence.py    # Confidence scoring (fallback)
-├── pdf_downloads/           # Organized PDF document storage
-├── requirements.txt         # Python dependencies
-└── README.md               # This documentation
+│       ├── base_zoning_agent.py     # BaseZoningAgent - Shared infrastructure:
+│       │                            #   - WebDriver management
+│       │                            #   - LLM integration (OpenRouter/Gemini)
+│       │                            #   - MMA lookup utilities
+│       │                            #   - PDF processing
+│       ├── zoning_map_agent.py      # ZoningMapAgent - Map discovery & analysis:
+│       │                            #   - Official website discovery
+│       │                            #   - Dynamic map search
+│       │                            #   - Gemini-based map selection
+│       │                            #   - Zoning district identification
+│       ├── zoning_bylaws_agent.py   # ZoningBylawsAgent - Comprehensive bylaws discovery:
+│       │                            #   - Multi-method discovery (ZBA + Planning Board)
+│       │                            #   - Advanced document detection
+│       │                            #   - Ecode360 integration
+│       │                            #   - Priority-based processing
+│       ├── zoning_agent.py          # CombinedZoningAgent - Orchestration layer:
+│       │                            #   - Unified interface
+│       │                            #   - Agent coordination
+│       │                            #   - State management
+│       ├── geocode.py               # Multi-provider geocoding services
+│       ├── search.py                # Tavily search integration (fallback)
+│       ├── scrape.py                # Web scraping and PDF utilities
+│       ├── llm.py                   # OpenRouter/Gemini model integration
+│       └── zoning.py                # Legacy GIS-based zoning (fallback)
+├── pdf_downloads/                   # Organized PDF document storage
+├── requirements.txt                 # Python dependencies
+└── README.md                       # This documentation
 ```
 
 ## Supported Metrics
@@ -317,10 +340,10 @@ Results include:
 - **Ecode360 Integration**: Comprehensive support for ecode360.com hosted documents
 - **Legacy Formats**: Limited support for non-standard document formats
 
-### AI Model Limitations
-- **Context Windows**: Limited by LLM token limits for very large documents
+### Language Model Limitations
+- **Context Windows**: Limited by Gemini model token limits for very large documents (32K tokens for Gemini 2.5 Pro)
 - **Accuracy Dependency**: Results depend on source document quality and structure
-- **Interpretation Variability**: AI interpretation may vary for ambiguous language
+- **Interpretation Variability**: Language model interpretation may vary for ambiguous regulatory language
 
 ## Development & Debugging
 
@@ -350,6 +373,7 @@ The system provides extensive structured logging across all agents:
 ### Enhanced Extensibility
 - **Agent-Based Architecture**: Easy addition of new specialized agents (e.g., permit agents, building code agents)
 - **Method Expansion**: Simple addition of new discovery methods within ZoningBylawsAgent
-- **API Integration**: Streamlined addition of new LLM providers or search services through BaseZoningAgent
+- **API Integration**: Streamlined addition of new language model providers or search services through BaseZoningAgent
 - **Document Processors**: Extensible document processing pipeline with shared utilities
 - **Geographic Expansion**: Framework ready for expansion beyond Massachusetts with agent specialization
+

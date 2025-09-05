@@ -13,6 +13,7 @@ Bylaws-IQ combines multiple advanced technologies in a sophisticated modular arc
 - **Multi-Method Document Discovery**: Battle-tested bylaws PDF discovery using multiple search strategies with early termination
 - **Enhanced Ecode360 Integration**: Advanced anti-bot bypass strategies and Chrome DevTools Protocol PDF generation  
 - **Large Language Model Analysis**: Google Gemini 2.5 Pro and Gemini Flash 1.5 via OpenRouter for document analysis and intelligent selection
+- **Manual Zoning District Fallback**: User-friendly manual input system when automated zoning map discovery fails, preserving all discovery resources
 - **Comprehensive Error Handling**: Robust fallback mechanisms with user consent controls and resource optimization
 
 ### Technical Highlights
@@ -185,6 +186,16 @@ Advanced integration for ecode360.com hosted municipal bylaws with comprehensive
 - **Quality Validation**: Multiple validation layers for JSON output, content completeness, and accuracy
 
 #### 7. Fallback & Error Handling System
+
+##### **Manual Zoning District Fallback**
+- **Zoning Map Discovery Failure**: When automated zoning map analysis cannot determine the zoning district
+- **Resource Preservation**: Maintains all discovered resources (official website, agent instances) from initial discovery
+- **User-Friendly Interface**: Clean form-based interface for manual zoning district input
+  - **Zoning District Name**: Full descriptive name (e.g., "Business District", "Mixed Use Industrial")
+  - **Zoning District Code**: Short designation code (e.g., "B-1", "I-3", "R-2")
+  - **Validation**: Both fields required with helpful placeholders and examples
+- **Seamless Continuation**: Manual input integrates directly into existing pipeline without resource waste
+- **Cancel Option**: Complete workflow reset with "Cancel Research" functionality
 
 ##### **User-Controlled Fallbacks**
 - **Primary Method Failure Detection**: Monitors official document discovery success

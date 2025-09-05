@@ -430,6 +430,380 @@ def run_query_fallback(
 	return output_dict
 
 
+def run_query_with_manual_zoning(
+	address: str,
+	requested_metrics: List[str],
+	zoning_district_name: str,
+	zoning_district_code: str,
+	geo: Dict[str, Any],
+	official_website: Optional[str] = None,
+	zoning_agent = None,
+	on_progress: Optional[Callable[[str], None]] = None,
+) -> Dict[str, Any]:
+	"""Run query pipeline with manually provided zoning district information"""
+	configure_logging()
+	logger = logging.getLogger("bylaws_iq.pipeline")
+	start_time = time.time()
+
+	def progress(msg: str) -> None:
+		logger.info("progress: %s", msg)
+		if on_progress:
+			try:
+				on_progress(msg)
+			except Exception:
+				logger.debug("progress callback failed", exc_info=True)
+
+	# Create zoning district info from manual input
+	zoning_district_info = {
+		'zoning_code': zoning_district_code.strip(),
+		'zoning_name': zoning_district_name.strip(),
+		'overlays': [],
+		'zoning_map_url': None,
+		'discovery_method': 'Manual User Input'
+	}
+	
+	logger.info(f"✅ Using manual zoning district: {zoning_district_code} - {zoning_district_name}")
+	progress(f"✅ Using manual zoning district: {zoning_district_code} - {zoning_district_name}")
+
+	# Use the existing zoning agent if provided, otherwise create new one
+	if zoning_agent is None:
+		zoning_agent = create_zoning_agent()
+		logger.info("🔧 Created new zoning agent for manual zoning processing")
+	else:
+		logger.info("🔧 Reusing existing zoning agent from map discovery")
+	
+	# Log the preserved official website
+	if official_website:
+		logger.info(f"🌐 Using preserved official website: {official_website}")
+	else:
+		logger.warning("⚠️ No official website preserved from map discovery")
+	
+	# Discover official bylaws PDF for the manually provided zoning district
+	official_bylaws_documents = []
+	use_fallback_system = False
+	
+	with span(logger, "discover_zoning_bylaws"):
+		zoning_code = zoning_district_info.get('zoning_code', '')
+		progress(f"📋 Discovering official bylaws for district {zoning_code}")
+		try:
+			# Call bylaws discovery with zoning district context and preserved official website
+			bylaws_results = zoning_agent.find_zoning_bylaws(
+				address, 
+				zoning_district=zoning_code,
+				official_website=official_website
+			)
+			if bylaws_results and len(bylaws_results) > 0:
+				bylaws_pdf = bylaws_results[0]  # Use the best discovered PDF
+				
+				# Convert to document format for synthesis, preserving all needed fields
+				doc_info = {
+					'url': bylaws_pdf['url'],
+					'title': bylaws_pdf['title'],
+					'content': f"Official Zoning Bylaws: {bylaws_pdf['title']}",
+					'score': 1.0,  # Highest priority
+					'source': 'official_bylaws_discovery'
+				}
+				
+				# Preserve essential fields for document processing
+				if 'type' in bylaws_pdf:
+					doc_info['type'] = bylaws_pdf['type']
+				
+				if 'filepath' in bylaws_pdf:
+					doc_info['filepath'] = bylaws_pdf['filepath']
+				
+				if 'download_url' in bylaws_pdf:
+					doc_info['download_url'] = bylaws_pdf['download_url']
+				
+				# Add source page if available for referrer header
+				if 'source_page' in bylaws_pdf:
+					doc_info['source_page'] = bylaws_pdf['source_page']
+				
+				official_bylaws_documents.append(doc_info)
+				
+				logger.info(f"✅ Found official bylaws: {bylaws_pdf['title']}")
+				progress(f"✅ Found official bylaws: {bylaws_pdf['title']}")
+			else:
+				logger.warning(f"⚠️ No official bylaws found for {zoning_code}")
+				progress(f"⚠️ Could not find official bylaws using primary method")
+				use_fallback_system = True
+		except Exception as e:
+			logger.error(f"❌ Bylaws discovery error: {str(e)}", exc_info=True)
+			progress(f"⚠️ Official bylaws discovery failed")
+			use_fallback_system = True
+
+	# If we need fallback, ask user for permission
+	if use_fallback_system:
+		progress("🤔 Primary method failed - requesting fallback permission")
+		# This will be handled by the UI - we'll return a special status
+		return {
+			"status": "fallback_permission_required",
+			"message": "We couldn't find official bylaws using our primary method. Would you like us to try our fallback search method instead?",
+			"address": address,
+			"zoning_district_info": zoning_district_info,
+			"geo": geo,
+			"requested_metrics": requested_metrics
+		}
+
+	# Continue with the same logic as the main run_query function
+	# Since we have official bylaws, skip general search
+	logger.info("🎯 Using official bylaws only - skipping general search")
+	progress("🎯 Using official bylaws document only")
+	search_results = []
+
+	with span(logger, "fetch_and_prepare_docs"):
+		progress("Preparing official bylaws document")
+		documents = []
+		
+		# Use ONLY the official bylaws document we discovered
+		progress("🏛️ Fetching official bylaws document")
+		for official_doc in official_bylaws_documents:
+			try:
+				doc_type = official_doc.get('type', 'pdf')
+				url = official_doc['url']
+				logger.info(f"🏛️ Processing official bylaws ({doc_type}): {url}")
+				logger.info(f"📄 Document metadata: {list(official_doc.keys())}")
+				
+				text = ""
+				
+				if doc_type == 'ecode360_pdf':
+					# Handle ecode360 PDF file
+					progress("📄 Processing ecode360 PDF document")
+					pdf_file_path = official_doc.get('filepath')
+					
+					logger.info(f"🔍 Looking for PDF file at: {pdf_file_path}")
+					logger.info(f"📁 File exists: {os.path.exists(pdf_file_path) if pdf_file_path else 'No filepath provided'}")
+					
+					if pdf_file_path and os.path.exists(pdf_file_path):
+						logger.info(f"📖 Reading ecode360 PDF file: {pdf_file_path}")
+						
+						try:
+							with open(pdf_file_path, 'rb') as f:
+								pdf_reader = PyPDF2.PdfReader(f)
+								text = ""
+								page_count = len(pdf_reader.pages)
+								logger.info(f"📄 PDF has {page_count} pages")
+								
+								for i, page in enumerate(pdf_reader.pages):
+									page_text = page.extract_text()
+									text += page_text + "\n"
+									logger.info(f"📄 Page {i+1}: extracted {len(page_text)} characters")
+							
+							logger.info(f"✅ Loaded {len(text):,} characters from ecode360 PDF document")
+							progress("✅ Ecode360 PDF Document Processed Successfully")
+						except Exception as pdf_error:
+							logger.error(f"❌ Error reading PDF file: {str(pdf_error)}")
+							raise Exception(f"Failed to read PDF file {pdf_file_path}: {str(pdf_error)}")
+					else:
+						raise Exception(f"ecode360 PDF file not found: {pdf_file_path}")
+				
+				elif doc_type == 'ecode360_html':
+					# Handle ecode360 HTML file (fallback)
+					progress("📄 Processing ecode360 HTML document")
+					html_file_path = official_doc.get('filepath')
+					
+					if html_file_path and os.path.exists(html_file_path):
+						logger.info(f"📖 Reading ecode360 HTML file: {html_file_path}")
+						
+						with open(html_file_path, 'r', encoding='utf-8') as f:
+							html_content = f.read()
+						
+						# Extract text from HTML using BeautifulSoup
+						soup = BeautifulSoup(html_content, 'html.parser')
+						
+						# Remove script, style, and other non-content elements
+						for script in soup(["script", "style", "nav", "header", "footer"]):
+							script.decompose()
+						
+						# Get text content
+						text_content = soup.get_text()
+						lines = (line.strip() for line in text_content.splitlines())
+						chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
+						text = '\n'.join(chunk for chunk in chunks if chunk)
+						
+						logger.info(f"✅ Loaded {len(text):,} characters from ecode360 HTML document")
+						progress("✅ Ecode360 HTML Document Processed Successfully")
+					else:
+						raise Exception(f"ecode360 HTML file not found: {html_file_path}")
+				
+				elif doc_type == 'ecode360_txt':
+					# Handle legacy ecode360 .txt file (for backward compatibility)
+					progress("📄 Processing ecode360 text document")
+					txt_file_path = official_doc.get('txt_file_path') or official_doc.get('filepath')
+					
+					if txt_file_path and os.path.exists(txt_file_path):
+						logger.info(f"📖 Reading ecode360 text file: {txt_file_path}")
+						
+						with open(txt_file_path, 'r', encoding='utf-8') as f:
+							text = f.read()
+						
+						logger.info(f"✅ Loaded {len(text):,} characters from ecode360 document")
+						progress("✅ Ecode360 Document Processed Successfully")
+					else:
+						raise Exception(f"ecode360 text file not found: {txt_file_path}")
+				
+				else:
+					# Handle standard PDF document
+					progress("🔄 Accessing official document (may try multiple strategies)")
+					
+					# Try to get the referrer URL (the page where we found this PDF)
+					referrer_url = None
+					# Look for "source_page" in the official_doc metadata if available
+					if 'source_page' in official_doc:
+						referrer_url = official_doc['source_page']
+					else:
+						# Generate a reasonable referrer based on the domain
+						from urllib.parse import urlparse
+						parsed = urlparse(url)
+						referrer_url = f"{parsed.scheme}://{parsed.netloc}/"
+					
+					# Use robust PDF fetching with multiple strategies
+					pdf_content = robust_fetch_pdf(url, referrer_url, logger)
+					progress("✅ Successfully accessed official document")
+					
+					# Extract text from PDF
+					pdf_reader = PyPDF2.PdfReader(io.BytesIO(pdf_content))
+					for page in pdf_reader.pages:  # Use all pages for official document
+						text += page.extract_text() + "\n"
+				
+				# Add the official document as the ONLY source
+				documents.append({
+					"url": official_doc.get('url', url),  # Use URL from document
+					"title": official_doc['title'],
+					"text": text,  # Use full text for official document
+					"score": 1.0,
+					"source": "official_bylaws",
+					"city_match": 1.0,
+					"domain_priority": 1.0
+				})
+				
+				logger.info(f"✅ Using official bylaws document only: {len(text)} chars")
+				progress(f"✅ Extracted {len(text):,} characters from official document")
+				
+			except Exception as e:
+				logger.error(f"❌ Failed to fetch official bylaws {url}: {str(e)}")
+				# If we can't fetch the official document, we need fallback
+				return {
+					"status": "fallback_permission_required",
+					"message": "We found the official bylaws document but couldn't access it. Would you like us to try our fallback search method instead?",
+					"address": address,
+					"zoning_district_info": zoning_district_info,
+					"geo": geo,
+					"requested_metrics": requested_metrics
+				}
+		
+		logger.info("docs.prepared: %d (official only)", len(documents))
+
+	with span(logger, "synthesize_metrics"):
+		progress("Synthesizing metric candidates with LLM")
+		
+		try:
+			# Add discovered zoning district
+			enhanced_zoning_districts = []
+			if zoning_district_info and isinstance(zoning_district_info, dict):
+				from .models import ZoningDistrict
+				
+				# Safely extract values with proper None checks
+				zoning_code = zoning_district_info.get('zoning_code') or ''
+				zoning_name = zoning_district_info.get('zoning_name') or ''
+				overlays = zoning_district_info.get('overlays') or []
+				source = zoning_district_info.get('zoning_map_url') or 'Manual User Input'
+				
+				# Only create district if we have at least a name or code
+				if zoning_code or zoning_name:
+					discovered_district = ZoningDistrict(
+						code=zoning_code,
+						name=zoning_name,
+						overlays=overlays,
+						source=source
+					)
+					enhanced_zoning_districts = [discovered_district]
+					logger.info(f"🎯 Synthesizing metrics for manually provided zoning district: {discovered_district.code} - {discovered_district.name}")
+				else:
+					logger.warning(f"⚠️ Zoning district info found but missing code and name")
+					enhanced_zoning_districts = []
+			else:
+				enhanced_zoning_districts = []
+				logger.info(f"🎯 Synthesizing metrics without specific zoning district")
+			
+			logger.info(f"📊 Documents for synthesis: {len(documents)}")
+			logger.info(f"📋 Requested metrics: {requested_metrics}")
+			
+			extraction = llm_service.synthesize_metrics(
+				address=address,
+				jurisdiction=geo["jurisdiction"],
+				zoning_districts=enhanced_zoning_districts,
+				requested_metrics=requested_metrics,
+				documents=documents,
+			)
+			
+			logger.info(f"✅ LLM synthesis completed successfully")
+			progress("✅ Metrics synthesis completed successfully")
+			
+		except Exception as e:
+			logger.error(f"❌ Error during LLM synthesis: {str(e)}", exc_info=True)
+			progress(f"❌ Error during metrics synthesis: {str(e)}")
+			raise e
+
+	verified = extraction
+
+	with span(logger, "collect_citations"):
+		# Create citation from the official bylaws document only
+		citations = [
+			{
+				"label": official_bylaws_documents[0]['title'],
+				"url": official_bylaws_documents[0]['url'],
+				"type": "official_bylaws"
+			}
+		]
+		logger.info("citations.source: official_bylaws_only")
+
+	# Prepare final zoning districts output
+	final_zoning_districts = enhanced_zoning_districts
+	
+	# Transform raw LLM data to MetricValue objects with proper filtering
+	source_title = official_bylaws_documents[0]['title'] if official_bylaws_documents else "Official Bylaws"
+	
+	# Define allowed metrics (matching old implementation)
+	allowed_parking = {"carParking90Deg", "officesParkingRatio", "drivewayWidth"}
+	allowed_zoning = {"minLotArea", "minFrontSetback", "minSideSetback", "minRearSetback", "minLotFrontage", "minLotWidth"}
+	
+	transformed_zoning_analysis = _transform_to_metric_values(verified.get("zoningAnalysis", {}), source_title, allowed_zoning)
+	transformed_parking_summary = _transform_to_metric_values(verified.get("parkingSummary", {}), source_title, allowed_parking)
+
+	output = OutputResult(
+		address=address,
+		jurisdiction=geo["jurisdiction"],
+		parkingSummary=transformed_parking_summary,
+		zoningAnalysis=transformed_zoning_analysis,
+		confidence=llm_service.estimate_confidence(verified),
+		citations=citations,
+		mode="synthesis",
+		latencyMs=int((time.time() - start_time) * 1000),
+		zoningDistricts=final_zoning_districts,
+	)
+	
+	# Add zoning district discovery metadata to output if available
+	output_dict = output.model_dump()
+	if zoning_district_info:
+		output_dict["discoveredZoningDistrict"] = {
+			"code": zoning_district_info.get('zoning_code'),
+			"name": zoning_district_info.get('zoning_name'),
+			"overlays": zoning_district_info.get('overlays', []),
+			"sourceUrl": zoning_district_info.get('zoning_map_url'),
+			"discoveryMethod": zoning_district_info.get('discovery_method', 'Manual User Input')
+		}
+	
+	# Add official bylaws source if available
+	if official_bylaws_documents:
+		output_dict["officialBylawsSource"] = {
+			"title": official_bylaws_documents[0]['title'],
+			"url": official_bylaws_documents[0]['url'],
+			"discoveryMethod": "Official Website Search"
+		}
+	logger.info("result.latencyMs=%d confidence=%.3f mode=%s", output.latencyMs, output.confidence, output.mode)
+	return output_dict
+
+
 def run_query(
 	address: str,
 	requested_metrics: List[str],
@@ -454,12 +828,24 @@ def run_query(
 	# Initialize our new zoning discovery system
 	zoning_agent = create_zoning_agent()
 	zoning_district_info = None
+	zoning_map_failed = False
+	official_website_from_map_discovery = None
 	
 	with span(logger, "discover_zoning_district"):
 		progress("🗺️ Discovering zoning district for address")
 		try:
 			# Use our new proven zoning discovery system
 			zoning_district_info = zoning_agent.find_zoning_district(address)
+			
+			# Try to preserve the official website URL even if zoning district discovery failed
+			try:
+				if hasattr(zoning_agent, 'zoning_map_agent') and hasattr(zoning_agent.zoning_map_agent, 'official_website'):
+					official_website_from_map_discovery = zoning_agent.zoning_map_agent.official_website
+					if official_website_from_map_discovery:
+						logger.info(f"🌐 Preserved official website from map discovery: {official_website_from_map_discovery}")
+			except Exception:
+				logger.debug("Could not extract official website from zoning map agent")
+			
 			if zoning_district_info:
 				# Debug: Check for None values in zoning district data
 				zoning_code = zoning_district_info.get('zoning_code')
@@ -472,9 +858,11 @@ def run_query(
 			else:
 				logger.warning("⚠️ No zoning district found using new system")
 				progress("⚠️ Zoning district discovery failed")
+				zoning_map_failed = True
 		except Exception as e:
 			logger.error(f"❌ Zoning discovery error: {str(e)}", exc_info=True)
 			progress("⚠️ Zoning district discovery failed")
+			zoning_map_failed = True
 
 	# Discover official bylaws PDF for the zoning district
 	official_bylaws_documents = []
@@ -530,7 +918,23 @@ def run_query(
 		progress("⚠️ No zoning district found - will need fallback")
 		use_fallback_system = True
 
-	# If we need fallback, ask user for permission
+	# Check if specifically the zoning map discovery failed
+	if zoning_map_failed:
+		progress("🤔 Zoning map discovery failed - requesting manual district entry")
+		# Extract city name from the geocoded information for the UI message
+		city_name = geo.get("jurisdiction", {}).get("city", "this")
+		return {
+			"status": "manual_zoning_district_required",
+			"message": f"We couldn't find an accurate Zoning Map for the {city_name} Jurisdiction. You can provide the Zoning District to continue",
+			"city_name": city_name,
+			"address": address,
+			"geo": geo,
+			"requested_metrics": requested_metrics,
+			"official_website": official_website_from_map_discovery,
+			"zoning_agent": zoning_agent  # Pass the existing agent instance
+		}
+
+	# If we need fallback for other reasons, ask user for permission
 	if use_fallback_system:
 		progress("🤔 Primary method failed - requesting fallback permission")
 		# This will be handled by the UI - we'll return a special status

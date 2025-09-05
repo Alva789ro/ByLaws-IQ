@@ -2949,6 +2949,20 @@ Include the date if visible. Only return the JSON array. If no zoning maps found
             # Use only PDF candidates for LLM selection
             candidates = pdf_candidates
             
+            # If there's only one PDF candidate, return it directly without LLM call
+            if len(candidates) == 1:
+                single_candidate = candidates[0]
+                selected_url = single_candidate.get('url', '')
+                selected_title = single_candidate.get('title', '')
+                selected_date = single_candidate.get('date', '')
+                
+                self.logger.info(f"🎯 SINGLE PDF CANDIDATE: Returning without LLM call")
+                self.logger.info(f"✅ SELECTED: '{selected_title}' ({selected_date}) -> {selected_url}")
+                return selected_url
+            
+            # Multiple candidates - use LLM for selection
+            self.logger.info(f"🤖 MULTIPLE PDF CANDIDATES: Using LLM to select from {len(candidates)} options")
+            
             # Prepare candidate descriptions for LLM
             candidate_descriptions = []
             for i, candidate in enumerate(candidates):
@@ -2970,10 +2984,10 @@ Select the BEST zoning map PDF for {city}.
 PDF CANDIDATES (all are confirmed PDFs):
 {candidates_text}
 
-RULES:
-- Choose the candidate with the MOST RECENT "Date", do not prioritize by the order they appear in the list.
-- Prioritize official/comprehensive zoning maps over partial district maps
-- If there's only 1 candidate, select it (return 1)
+SELECTION STRATEGY:
+    - Prioritize candidates that have any of this "Title": "Zoning Map", "Zoning Map (PDF)". There are others but these should be likely candidates.
+    - If more than one candidate has the same "Title", or are very similar, prioritize the one with the most recent "Date".
+    - Do not prioritize by the order they appear in the list, as the order presented is random.
 
 Return only the candidate number (1, 2, 3, etc.).
 All candidates are confirmed PDFs, so return 0 only if none appear to be zoning maps.

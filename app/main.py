@@ -12,7 +12,7 @@ project_root = pathlib.Path(__file__).resolve().parents[1]
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
-from bylaws_iq.pipeline import run_query, run_query_fallback
+from bylaws_iq.pipeline import run_query, run_query_fallback, run_query_with_manual_zoning
 
 load_dotenv()
 st.set_page_config(page_title="ByLaws-IQ", layout="wide")
@@ -78,8 +78,97 @@ if 'fallback_data' not in st.session_state:
 if 'show_fallback_choice' not in st.session_state:
     st.session_state.show_fallback_choice = False
 
+# Initialize session state for manual zoning district entry
+if 'manual_zoning_data' not in st.session_state:
+    st.session_state.manual_zoning_data = None
+if 'show_manual_zoning_input' not in st.session_state:
+    st.session_state.show_manual_zoning_input = False
+
+# Handle manual zoning district input
+if st.session_state.show_manual_zoning_input and st.session_state.manual_zoning_data:
+    st.warning("⚠️ **Zoning Map Discovery Failed**")
+    st.write(st.session_state.manual_zoning_data["message"])
+    
+    # Create a form for manual zoning district entry
+    with st.form("manual_zoning_form"):
+        st.subheader("Please provide the Zoning District information:")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            zoning_district_name = st.text_input(
+                "Zoning District Name",
+                placeholder="e.g., Business, Mixed Use Industrial, Residential",
+                help="Enter the full name of the zoning district"
+            )
+        
+        with col2:
+            zoning_district_code = st.text_input(
+                "Zoning District Code",
+                placeholder="e.g., B-1, I-3, R-2",
+                help="Enter the short code or designation for the zoning district"
+            )
+        
+        # Form submission buttons
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            submit_manual = st.form_submit_button("✅ Continue with Manual Zoning", type="primary")
+        
+        with col2:
+            cancel_manual = st.form_submit_button("❌ Cancel Research", type="secondary")
+    
+    # Handle form submission
+    if submit_manual:
+        if not zoning_district_name.strip() or not zoning_district_code.strip():
+            st.error("⚠️ **Both fields are required.** Please fill in both the Zoning District Name and Code.")
+        else:
+            # Clear the manual zoning input state
+            st.session_state.show_manual_zoning_input = False
+            
+            # Show that we're reusing discovered resources
+            if st.session_state.manual_zoning_data.get("official_website"):
+                progress_area.info(f"🔄 Continuing with preserved website: {st.session_state.manual_zoning_data.get('official_website')}")
+            else:
+                progress_area.info("🔄 Continuing with manually provided zoning district...")
+            
+            # Run query with manual zoning district, preserving resources from initial discovery
+            start = time.time()
+            result = run_query_with_manual_zoning(
+                address=st.session_state.manual_zoning_data["address"],
+                requested_metrics=st.session_state.manual_zoning_data["requested_metrics"],
+                zoning_district_name=zoning_district_name.strip(),
+                zoning_district_code=zoning_district_code.strip(),
+                geo=st.session_state.manual_zoning_data["geo"],
+                official_website=st.session_state.manual_zoning_data.get("official_website"),
+                zoning_agent=st.session_state.manual_zoning_data.get("zoning_agent"),
+                on_progress=ui_progress
+            )
+            latency_ms = int((time.time() - start) * 1000)
+            
+            st.caption(f"Latency: {latency_ms} ms (Manual Zoning District)")
+            st.session_state.manual_zoning_data = None
+            
+            # Check if we still need fallback permission after manual zoning
+            if isinstance(result, dict) and result.get("status") == "fallback_permission_required":
+                st.session_state.fallback_data = result
+                st.session_state.show_fallback_choice = True
+                st.rerun()
+            
+            # Display success message
+            st.success("✅ **Continuing with manually provided zoning district information**")
+            
+            # Continue with normal result display logic below
+    
+    elif cancel_manual:
+        # Reset the app state
+        st.session_state.show_manual_zoning_input = False
+        st.session_state.manual_zoning_data = None
+        st.error("🔄 **Research Cancelled** - Please enter a new address to start over.")
+        st.rerun()
+
 # Handle fallback permission choice
-if st.session_state.show_fallback_choice and st.session_state.fallback_data:
+elif st.session_state.show_fallback_choice and st.session_state.fallback_data:
     st.warning("⚠️ **Primary Method Failed**")
     st.write(st.session_state.fallback_data["message"])
     
@@ -127,8 +216,14 @@ else:
         start = time.time()
         result = run_query(address=address, requested_metrics=requested_metrics, on_progress=ui_progress)
         
+        # Check if we need manual zoning district input
+        if isinstance(result, dict) and result.get("status") == "manual_zoning_district_required":
+            st.session_state.manual_zoning_data = result
+            st.session_state.show_manual_zoning_input = True
+            st.rerun()
+        
         # Check if we need fallback permission
-        if isinstance(result, dict) and result.get("status") == "fallback_permission_required":
+        elif isinstance(result, dict) and result.get("status") == "fallback_permission_required":
             st.session_state.fallback_data = result
             st.session_state.show_fallback_choice = True
             st.rerun()
@@ -136,8 +231,12 @@ else:
         latency_ms = int((time.time() - start) * 1000)
         st.caption(f"Latency: {latency_ms} ms")
 
-# Only display results if we have them and we're not in fallback choice mode
-if not st.session_state.show_fallback_choice and 'result' in locals() and isinstance(result, dict) and result.get("status") != "fallback_permission_required":
+# Only display results if we have them and we're not in fallback choice or manual zoning input mode
+if (not st.session_state.show_fallback_choice and 
+    not st.session_state.show_manual_zoning_input and 
+    'result' in locals() and 
+    isinstance(result, dict) and 
+    result.get("status") not in ["fallback_permission_required", "manual_zoning_district_required"]):
     # Display discovered zoning district prominently if available
     if "discoveredZoningDistrict" in result and result["discoveredZoningDistrict"]["code"]:
         zoning_info = result["discoveredZoningDistrict"]
